@@ -154,7 +154,7 @@ int main() {
 				else if (iY >= iFloorHeight) {
 					// Shade floor based on distance
 					float b = 1.0f - (((float)iY - iScreenHeight / 2.0f) / ((float)iScreenHeight / 2.0f));
-					if (b < 0.25)		sShade = '#';
+					if (b < 0.25)		sShade = 'x';
 					else if (b < 0.5)	sShade = 'x';
 					else if (b < 0.75)	sShade = '.';
 					else if (b < 0.9)	sShade = '-';
