@@ -58,7 +58,6 @@ int main() {
 	//The Game loop
 	while (1) {
 
-		// Handle CCW Rotation
 		if (GetAsyncKeyState((unsigned short)'A') & 0x8000)
 			fPlayerFocusViewRayAngle -= (fSpeed * 0.5f) * fSpeedMultiplier;
 
@@ -138,11 +137,11 @@ int main() {
 
 			//shading walls based on the distanece from the player
 			short sShade = ' ';
-			if (fDistanceOfWallFromPlayer <= fMapDepth / 4.0f)			sShade = 0x2588;	// Very close	
+			if (fDistanceOfWallFromPlayer <= fMapDepth / 4.0f)			sShade = 0x2588;
 			else if (fDistanceOfWallFromPlayer < fMapDepth / 2.5f)		sShade = 0x2593;
 			else if (fDistanceOfWallFromPlayer < fMapDepth / 1.5f)		sShade = 0x2592;
 			else if (fDistanceOfWallFromPlayer < fMapDepth)				sShade = 0x2591;
-			else														sShade = ' ';		// Too far away 
+			else														sShade = ' ';
 
 			//printing the game
 			for (int iY = 0; iY < iScreenHeight; iY++) {
