@@ -1,5 +1,8 @@
 //One thing to note here is that the coordinate system used in this Program is slightly reversed that is the Y-axis is reversed (going down is positive and going up is negative)
 
+//to increase the fps of the game increase the fStepSizeOfTheRayCaster in Player Info Variables
+//but decreseing the above decreases flickering by a much
+
 #include <iostream>
 #include <Windows.h>
 #include <chrono>
@@ -25,9 +28,13 @@ float fPlayerYCoordi = 8.0f;				//Starting Player Y Coordinate
 float fPlayerFocusViewRayAngle = 0.0f;		//I am measuring the angle from the positive x-axis
 float fPlayerFOV = PI / 4;					//(Field of View) Measured in Radians
 float fSpeed = 5.0f;						//Player Speed for translation and rotation
-float fStepSizeOfTheRayCaster = 0.01f;		//Reduces this improves the textures a lil' bit
+float fStepSizeOfTheRayCaster = 0.02f;		//Reduces this improves the textures a lil' bit
 bool bIsSpaceAvailForMiniMapRay;
 short cPlayerCharacter;
+
+//Should not have been global variables
+int iTestX;
+int iTestY;
 
 //function that takes any angle in radians as input and returns a integer angle that is between -179deg to 180deg
 int RadianManyToOneDegree(float beginAngle) {
@@ -78,6 +85,9 @@ int main() {
 	//The Game loop
 	while (1) {
 
+		//for the block detection system
+		bool bIsFirstLoop = true;
+
 		bIsSpaceAvailForMiniMapRay = true;
 
 		tpNow = chrono::system_clock::now();
@@ -95,7 +105,7 @@ int main() {
 
 		if (GetAsyncKeyState((unsigned short)'D') & 0x8000) {
 			fPlayerFocusViewRayAngle += (fSpeed * 0.5f) * fElapsedTime;
-			
+
 			if (fPlayerFocusViewRayAngle > PI) {
 				fPlayerFocusViewRayAngle = -PI;
 			}
@@ -121,18 +131,8 @@ int main() {
 			}
 		}
 
-		bool bFirstHorizontalLoop = true;
-		bool bCompareRate = false;
-
 		//loop going through all the coloumns
 		for (int iX = 0; iX < iScreenWidth; iX++) {
-
-			static float fPreviousDistToWall = NULL;
-			static int iPrevRateOfChangeOfDist = NULL;
-
-			int iRateOfChangeOfDist = NULL;
-			bool bIsGap = false;
-
 			float fCurrentRayAngle = (fPlayerFocusViewRayAngle - fPlayerFOV / 2) + (((float)iX / (float)iScreenWidth) * fPlayerFOV);			//This is a temporary ray for the calculation of distances from the player
 
 			//Getting the unit vectors of the currentRayAngle
@@ -149,11 +149,11 @@ int main() {
 			while (!bIsBoundary && !bDidPlayerHitWall) {
 				fDistanceOfWallFromPlayer += fStepSizeOfTheRayCaster;
 
-				int iTestX = (int)(fPlayerXCoordi + fUnitVecX * fDistanceOfWallFromPlayer);
-				int iTestY = (int)(fPlayerYCoordi + fUnitVecY * fDistanceOfWallFromPlayer);
+				iTestX = (int)(fPlayerXCoordi + fUnitVecX * fDistanceOfWallFromPlayer);
+				iTestY = (int)(fPlayerYCoordi + fUnitVecY * fDistanceOfWallFromPlayer);
 
 				//checking if the ray is out of the bounds
-				if (iTestX < 0 || iTestX >= iScreenWidth || iTestY < 0 || iTestY >= iScreenHeight) {
+				if (iTestX < 0 || iTestX >= iMapWidth || iTestY < 0 || iTestY >= iMapHeight) {
 					bIsBoundary = true;
 					fDistanceOfWallFromPlayer = fMapDepth;
 				}
@@ -164,27 +164,23 @@ int main() {
 				}
 			}
 
-			//to check where to put the gap between the walls
-			if (!bFirstHorizontalLoop) {
-				if (fPreviousDistToWall < fDistanceOfWallFromPlayer)
-					iRateOfChangeOfDist = 1;
-				else if (fPreviousDistToWall == fDistanceOfWallFromPlayer)
-					iRateOfChangeOfDist = 0;
-				else
-					iRateOfChangeOfDist = -1;
-
-				if (bCompareRate) {
-					if (iPrevRateOfChangeOfDist == 1 && iRateOfChangeOfDist == -1)
-						bIsGap = true;
-					else if (iPrevRateOfChangeOfDist == -1 && iRateOfChangeOfDist == 1)
-						bIsGap = true;
-					else bIsGap = false;
-				}
-
-				iPrevRateOfChangeOfDist = iRateOfChangeOfDist;
-
-				bCompareRate = true;
+			//block detecting system
+			static int iPrevTestX;
+			static int iPrevTextY;
+			bool bIsGap = false;
+			if (bIsFirstLoop) {
+				bIsFirstLoop = false;
+				iPrevTestX = iTestX;
+				iPrevTextY = iTestY;
 			}
+			else {
+				if (iPrevTestX != iTestX || iPrevTextY != iTestY) {
+					bIsGap = true;
+				}
+			}
+			iPrevTestX = iTestX;
+			iPrevTextY = iTestY;
+
 
 			//calculating the size of the ceiling and the floor for the current position
 			int iCeilingHeight = (float)(iScreenHeight / 2.0) - iScreenHeight / (fDistanceOfWallFromPlayer);
@@ -218,16 +214,13 @@ int main() {
 					screen[iY * iScreenWidth + iX] = sShade;
 				}
 			}
-
-			fPreviousDistToWall = fDistanceOfWallFromPlayer;
-			bFirstHorizontalLoop = false;
 		}
 
 		//converting radians to degree scale
 		int iPlayerCurrentAngle = RadianManyToOneDegree(fPlayerFocusViewRayAngle);
 
 		//for printing stats on the top left side of the screen
-		swprintf_s(screen, 30, L"Angle=%4ddeg X=%5.2f Y=%5.2f", -iPlayerCurrentAngle, fPlayerXCoordi, fPlayerYCoordi);
+		swprintf_s(screen, 45, L"Angle=%4ddeg X=%5.2f Y=%5.2f", -iPlayerCurrentAngle, fPlayerXCoordi, fPlayerYCoordi);
 
 		//drawing minimap to the screen
 		for (int iY = 0; iY < iMapHeight; iY++) {
@@ -240,64 +233,80 @@ int main() {
 			}
 		}
 
-		int iSpaceAvailIndicator = 0;
-
 		//drawing the ray of the player on the map based on the space available on the minimap
-		if (fPlayerFocusViewRayAngle <= (PI / 4) && fPlayerFocusViewRayAngle >= -(PI / 4)) {
-			if (screen[(int)(fPlayerYCoordi - 1) * iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi + 1)] != '#')
-				screen[(int)(fPlayerYCoordi - 1) * iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi + 1)] = '/';
-			else iSpaceAvailIndicator++;
-
-			if (screen[(int)(fPlayerYCoordi + 1) * iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi + 1)] != '#')
-				screen[(int)(fPlayerYCoordi + 1) * iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi + 1)] = '\\';
-			else iSpaceAvailIndicator++;
-		}
-		else if (fPlayerFocusViewRayAngle <= 3 * (PI / 4) && fPlayerFocusViewRayAngle > (PI / 4)) {
-			if (screen[(int)(fPlayerYCoordi + 1) * iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi - 1)] != '#')
-				screen[(int)(fPlayerYCoordi + 1) * iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi - 1)] = '/';
-			else iSpaceAvailIndicator++;
-
-			if (screen[(int)(fPlayerYCoordi + 1) * iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi + 1)] != '#')
-				screen[(int)(fPlayerYCoordi + 1) * iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi + 1)] = '\\';
-			else iSpaceAvailIndicator++;
-		}
-		else if (fPlayerFocusViewRayAngle < -(PI / 4) && fPlayerFocusViewRayAngle >= -3 * (PI / 4)) {
-			if (screen[(int)(fPlayerYCoordi - 1) * iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi - 1)] != '#')
-				screen[(int)(fPlayerYCoordi - 1) * iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi - 1)] = '\\';
-			else iSpaceAvailIndicator++;
-
-			if (screen[(int)(fPlayerYCoordi - 1) * iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi + 1)] != '#')
-				screen[(int)(fPlayerYCoordi - 1) * iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi + 1)] = '/';
-			else iSpaceAvailIndicator++;
-		}
-		else {
-			if (screen[(int)(fPlayerYCoordi - 1) * iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi - 1)] != '#')
-				screen[(int)(fPlayerYCoordi - 1) * iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi - 1)] = '\\';
-			else iSpaceAvailIndicator++;
-
-			if (screen[(int)(fPlayerYCoordi + 1) * iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi - 1)] != '#')
-				screen[(int)(fPlayerYCoordi + 1) * iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi - 1)] = '/';
-			else iSpaceAvailIndicator++;
-		}
-
-		if (iSpaceAvailIndicator >= 1)
-			bIsSpaceAvailForMiniMapRay = false;
-		
-		//setting the symbol for the chracter based on the space available on the minimap
-		if(bIsSpaceAvailForMiniMapRay)
-			cPlayerCharacter = 'O';
-		else {
-			if(fPlayerFocusViewRayAngle <= (PI/4) && fPlayerFocusViewRayAngle >= -(PI/4))
-				cPlayerCharacter = '>';
-			else if(fPlayerFocusViewRayAngle <= 3*(PI / 4) && fPlayerFocusViewRayAngle > (PI / 4))
-				cPlayerCharacter = 'v';
-			else if(fPlayerFocusViewRayAngle < -(PI / 4) && fPlayerFocusViewRayAngle >= -3*(PI / 4))
-				cPlayerCharacter = 0x02C4;
+		if (fPlayerFocusViewRayAngle <= (PI / 8) && fPlayerFocusViewRayAngle > -(PI / 8)) {												//right
+			if (screen[(int)(fPlayerYCoordi)*iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi + 1)] != '#') {
+				screen[(int)(fPlayerYCoordi)*iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi + 1)] = '>';
+				screen[(int)(fPlayerYCoordi)*iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi)] = 'O';
+			}
 			else
-				cPlayerCharacter = '<';
+				screen[(int)(fPlayerYCoordi)*iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi)] = '>';
+		}
+		else if (fPlayerFocusViewRayAngle <= 3 * (PI / 8) && fPlayerFocusViewRayAngle > (PI / 8)) {										//botton-right
+			if (screen[(int)(fPlayerYCoordi + 1) * iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi + 1)] != '#') {
+				screen[(int)(fPlayerYCoordi + 1) * iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi + 1)] = 0x2519;
+				screen[(int)(fPlayerYCoordi)*iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi)] = 'O';
+			}
+			else
+				screen[(int)(fPlayerYCoordi)*iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi)] = 0x2519;
+		}
+		else if (fPlayerFocusViewRayAngle <= 5 * (PI / 8) && fPlayerFocusViewRayAngle > 3 * (PI / 8)) {									//bottom
+			if (screen[(int)(fPlayerYCoordi + 1) * iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi)] != '#') {
+				screen[(int)(fPlayerYCoordi + 1) * iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi)] = 'v';
+				screen[(int)(fPlayerYCoordi)*iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi)] = 'O';
+			}
+			else
+				screen[(int)(fPlayerYCoordi)*iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi)] = 'v';
+		}
+		else if (fPlayerFocusViewRayAngle <= 7 * (PI / 8) && fPlayerFocusViewRayAngle > 5 * (PI / 8)) {									//bottom-left
+			if (screen[(int)(fPlayerYCoordi + 1) * iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi - 1)] != '#') {
+				screen[(int)(fPlayerYCoordi + 1) * iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi - 1)] = 0x2515;
+				screen[(int)(fPlayerYCoordi)*iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi)] = 'O';
+			}
+			else
+				screen[(int)(fPlayerYCoordi)*iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi)] = 0x2515;
+		}
+		else if (fPlayerFocusViewRayAngle <= PI && fPlayerFocusViewRayAngle > 7 * (PI / 8)) {											//left
+			if (screen[(int)(fPlayerYCoordi)*iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi - 1)] != '#') {
+				screen[(int)(fPlayerYCoordi)*iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi - 1)] = '<';
+				screen[(int)(fPlayerYCoordi)*iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi)] = 'O';
+			}
+			else
+				screen[(int)(fPlayerYCoordi)*iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi)] = 0x2515;
+		}
+		else if (fPlayerFocusViewRayAngle >= -PI && fPlayerFocusViewRayAngle <= -7 * (PI / 8)) {										//left
+			if (screen[(int)(fPlayerYCoordi)*iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi - 1)] != '#') {
+				screen[(int)(fPlayerYCoordi)*iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi - 1)] = '<';
+				screen[(int)(fPlayerYCoordi)*iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi)] = 'O';
+			}
+			else
+				screen[(int)(fPlayerYCoordi)*iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi)] = '<';
+		}
+		else if (fPlayerFocusViewRayAngle > -7 * (PI / 8) && fPlayerFocusViewRayAngle <= -5 * (PI / 8)) {								//top-left
+			if (screen[(int)(fPlayerYCoordi - 1) * iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi - 1)] != '#') {
+				screen[(int)(fPlayerYCoordi - 1) * iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi - 1)] = 0x250D;
+				screen[(int)(fPlayerYCoordi)*iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi)] = 'O';
+			}
+			else
+				screen[(int)(fPlayerYCoordi)*iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi)] = 0x250D;
+		}
+		else if (fPlayerFocusViewRayAngle > -5 * (PI / 8) && fPlayerFocusViewRayAngle <= -3 * (PI / 8)) {								//top
+			if (screen[(int)(fPlayerYCoordi - 1) * iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi)] != '#') {
+				screen[(int)(fPlayerYCoordi - 1) * iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi)] = 0x02C4;
+				screen[(int)(fPlayerYCoordi)*iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi)] = 'O';
+			}
+			else
+				screen[(int)(fPlayerYCoordi)*iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi)] = 0x02C4;
+		}
+		else if (fPlayerFocusViewRayAngle > -3 * (PI / 8) && fPlayerFocusViewRayAngle <= -(PI / 8)) {									//top-right
+			if (screen[(int)(fPlayerYCoordi - 1) * iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi + 1)] != '#') {
+				screen[(int)(fPlayerYCoordi - 1) * iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi + 1)] = 0x2511;
+				screen[(int)(fPlayerYCoordi)*iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi)] = 'O';
+			}
+			else
+				screen[(int)(fPlayerYCoordi)*iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi)] = 0x2511;
 		}
 
-		screen[(int)fPlayerYCoordi * iScreenWidth + ((iScreenWidth - iMapWidth) + (int)fPlayerXCoordi)] = cPlayerCharacter;
 
 		//To draw the whole frame on the screen
 		screen[iScreenWidth * iScreenHeight - 1] = '\0';
